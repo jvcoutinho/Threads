@@ -39,8 +39,10 @@ void abrirArquivo(int i) {
 	int produto;
 	while(!fs.eof()) {
 		fs >> produto;
-		contabilizarVenda(produto);
-		produtosLidos++;
+		if(!fs.eof()) { // Impedir que ele conte um arquivo a mais.
+			contabilizarVenda(produto);
+			produtosLidos++;
+		}	
 	}
 
 	fs.close(); 
