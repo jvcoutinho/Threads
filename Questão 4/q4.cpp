@@ -5,7 +5,7 @@
 #include <condition_variable>
 #include <vector>
 #include <pthread.h>
-#define NUM_INCOGNITAS 3
+#define NUM_INCOGNITAS 4
 using namespace std;
 
 class Jacobi {
@@ -47,9 +47,10 @@ void Jacobi::initA() {
 	for(int i = 0; i < A.size(); i++)
 		A[i] = vector<double>(NUM_INCOGNITAS);
 
-	A[0] = { 5, -2, 3 };
-	A[1] = { -3, 9, 1 };
-	A[2] = { 2, -1, -7 };
+	A[0] = { 10, -1, 2, 0 };
+	A[1] = { -1, 11, -1, 3 };
+	A[2] = { 2, -1, 10, -1 };
+	A[3] = { 0, 3, -1, 8 };
 
 	/*A[0] = { 2, 1 };
 	A[1] = { 5, 7 };*/
@@ -57,7 +58,7 @@ void Jacobi::initA() {
 
 void Jacobi::initB() {
 	B = vector<double>(NUM_INCOGNITAS);
-	B = { -1, 2, 3 };
+	B = { 6, 25, -11, 15 };
 	//B = { 11, 13 };
 }
 
@@ -104,11 +105,12 @@ void Jacobi::solve(int numThread) {
 			for(list<int>::iterator i = incognitas[numThread].begin(); i != incognitas[numThread].end(); i++)
 				JacobiMethod(*i);
 
-			/* Barreira: as threads devem parar aqui para esperar o restante. */
+			/* Barreira: as threads devem parar aqui para esperar o restante terminar seus cálculos. */
 			pthread_barrier_wait(&barrier);
 			/* A implementação consiste que cada thread tem seu próprio espaço e nada mais. Considerando isso
-			e o fato que temos uma barreira, tratamento para regiões críticas é dispensável. */
+			e o fato que temos mais uma barreira, tratamento para regiões críticas é dispensável. */
 			atualizaSolucao(numThread);
+			pthread_barrier_wait(&barrier);
 		}
 	}
 }
