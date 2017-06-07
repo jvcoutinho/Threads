@@ -1,232 +1,227 @@
 #include <iostream>
 #include <vector>
-#include <utility>
 #include <thread>
+#include <utility>
 #include <fstream>
 using namespace std;
 
-typedef pair<int, double> parEsparso;
+typedef pair<int, double> par;
+typedef vector<par> sparseVector;
+typedef vector<double> denseVector;
 
-class Matrizes {
+class SparseMatrix {
 
 private:
-	int numLinhas;
-	vector< vector<parEsparso> > matrizEsparsa1;
-	vector< vector<parEsparso> > matrizEsparsa2;
-	vector<parEsparso> vetorEsparso;
-	vector< vector<double> > matrizDensa;
-
-	vector< vector<parEsparso> > solucaoMM;
-	vector<parEsparso> solucaoMV;
+	vector<sparseVector> matrizEsparsa_1;
+	vector<sparseVector> matrizEsparsa_2;
+	vector<double> vetorDenso;
+	vector<denseVector> matrizDensa;
+	vector<sparseVector> solucaoEsparsa; // Matriz x matriz.
+	vector<par> solucaoDensa; // Matriz x vetor.
+	int numThreads;
 
 public:
+	
+	SparseMatrix(int operacao) {
+		if(setOperands(operacao))
+				setSolution();
+		else {
+			cout << "Entrada inválida para multiplicação." << endl;
+			exit(1);
+		}
+	};
 
 	thread createThread(int numThread, int operacao) {
-
 		if(operacao == 1)
-			return thread([=] { timesSparseVector(numThread); });
+			return thread([=] { timesDenseVector(numThread); });
 		else if(operacao == 2)
 			return thread([=] { timesSparseMatrix(numThread); });
 		else
-			return thread([=] { timesDenseMatrix(numThread); });
-			
-	}
+			return thread([=] { timesDenseMatrix(numThread); });	
+	};
 	
-	Matrizes(int operacao) {
-		if(setOperands(operacao))
-			setSolution();
-		else {
-			cout << "Entrada inválida." << endl;
-			exit(1);
+
+	bool setOperands(int operacao) {
+		fstream entrada;
+		entrada.open(inputString(operacao));
+
+		/* Pegando a matriz esparsa. */
+		vector<denseVector> M = fetchMatrix(entrada);
+		numThreads = M.size(); // É o número de linhas.
+
+		switch(operacao) {
+
+			case 1: { /* Pegando o vetor esparso. */
+				vetorDenso = fetchVector(entrada);
+
+				if(vetorDenso.size() != M[0].size())
+					return false;
+				
+				break;
+			}
+
+			case 2: { /* Pegando a matriz esparsa. */
+				vector<denseVector> M2 = fetchMatrix(entrada);
+
+				if(M2.size() == M[0].size()) 
+					matrizEsparsa_2 = getSparseMatrix(M2, 2);
+			
+				else 
+					return false;
+				
+				break;
+			}
+
+			case 3: { /* Pegando a matriz densa. */
+				matrizDensa = fetchMatrix(entrada);
+
+				if(matrizDensa.size() != M[0].size()) 
+					return false;
+
+				break;
+			}	
 		}
 
-		
+		entrada.close();
+
+		matrizEsparsa_1 = getSparseMatrix(M, 1);
+		return true;
 	};
 
-	bool setOperands(int operacao);
-	void setSolution();
-	string inputString(int operacao);
+	string inputString(int operacao) {
+		string input = "";
+		input += (operacao + 48);
+		input += ".in";
+		return input;
+	};
 
-	vector<double> fetchVector(fstream &entrada);
-	vector<parEsparso> getSparseVector(vector<double> V);
-	vector< vector<double> > fetchMatrix(fstream &entrada);
-	vector< vector<parEsparso> > getSparseMatrix(vector< vector<double> > M);
+	vector<denseVector> fetchMatrix(fstream &entrada) {
+		int numLinhas, numColunas;
+		int elemento;
 
-	int getNumLinhas() {
-		return numLinhas;
-	}
+		entrada >> numLinhas >> numColunas;
 
-	void timesSparseVector(int numThread);
-	void timesSparseMatrix(int numThread);
+		vector<denseVector> matriz(numLinhas);
+		for(int i = 0; i < numLinhas; i++) {
+
+			matriz[i] = vector<double>(numColunas);
+
+			for(int j = 0; j < numColunas; j++) {
+				entrada >> elemento;
+				matriz[i][j] = elemento;
+			}
+		}
+
+		return matriz;
+	};
+
+	vector<double> fetchVector(fstream &entrada) {
+		int numLinhas;
+		int elemento;
+
+		entrada >> numLinhas;
+
+		vector<double> vetor(numLinhas);
+		for(int i = 0; i < numLinhas; i++) {
+			entrada >> elemento;
+			vetor[i] = elemento;
+		}
+
+		return vetor;
+	};
+
+	void setSolution() {
+		solucaoEsparsa = vector<sparseVector>(numThreads);
+		solucaoDensa = vector<par>(numThreads);
+	};
+
+	/* A 2ª matriz esparsa será armazenada diferente, para facilitar a multiplicação. */
+	vector<sparseVector> getSparseMatrix(vector<denseVector> M, int numMatriz) {
+		vector<sparseVector> sparseM;
+
+		if(numMatriz == 1) {
+			for(int i = 0; i < M.size(); i++) 
+				sparseM.push_back(getSparseVector(M[i]));
+			return sparseM;
+		} else { // A 2ª matriz é armazenada de uma forma que os elementos de mesma coluna estão na mesma linha.
+			for(int i = 0; i < M[0].size(); i++) {
+				vector<par> sparseV;
+				for(int j = 0; j < M.size(); j++)
+					if(M[j][i] != 0)
+						sparseV.push_back(par(j, M[j][i]));
+				sparseM.push_back(sparseV);
+			}
+		}
+	};
+
+	vector<par> getSparseVector(vector<double> V) {
+		vector<par> sparseV;
+		for(int i = 0; i < V.size(); i++) 
+			if(V[i] != 0)
+				sparseV.push_back(par(i, V[i]));
+		return sparseV;
+	};
+
+	void timesSparseMatrix(int numThread) {
+
+		double soma = 0;
+		
+		for(int j = 0; j < matrizEsparsa_2.size(); j++) {
+			soma = 0;
+			for(int i = 0; i < matrizEsparsa_1[numThread].size(); i++) 
+					for(int k = 0; k < matrizEsparsa_2[j].size(); k++) {
+						if(matrizEsparsa_1[numThread][i].first == matrizEsparsa_2[j][k].first)
+							soma += matrizEsparsa_1[numThread][i].second * matrizEsparsa_2[j][k].second;
+					
+					}
+			if(soma != 0)
+				solucaoEsparsa[numThread].push_back(par(j, soma));						
+		}		
+	};
+
+	void timesDenseVector(int numThread) {
+
+		double soma = 0;
+
+		for(int i = 0; i < matrizEsparsa_1[numThread].size(); i++) 
+			soma += matrizEsparsa_1[numThread][i].second * vetorDenso[matrizEsparsa_1[numThread][i].first];
+
+		if(soma != 0)
+			solucaoDensa[numThread] = par(0, soma);
+	};
+
 	void timesDenseMatrix(int numThread) {};
 
-	void printSolution(int operacao);
-	
+	void printSolution(int operacao) {
+		cout << endl << "Solução:" << endl;
+		int i, j;
+		if(operacao == 1) {
+			cout << "{ ";
+			for(i = 0; i < solucaoDensa.size() - 1; i++)
+				cout << "(" << solucaoDensa[i].first << ", " << solucaoDensa[i].second << ")" << ", ";
+			cout << "(" << solucaoDensa[i].first << ", " << solucaoDensa[i].second << ")" << " }" << endl;
+		} else {
+			for(i = 0; i < solucaoEsparsa.size(); i++) {
+				cout << "{ ";
+				for(j = 0; j < solucaoEsparsa[i].size() - 1; j++)
+					cout << "(" << solucaoEsparsa[i][j].first << ", " << solucaoEsparsa[i][j].second << ")" << ", ";
+				cout << "(" << solucaoEsparsa[i][j].first << ", " << solucaoEsparsa[i][j].second << ")" << " }" << endl;
+			}
+		}
+	};
+
+	int getNumThreads() {
+		return numThreads;
+	};
+		 
 };
 
-vector< vector<double> > Matrizes::fetchMatrix(fstream &entrada) {
-	int numLinhas, numColunas;
-	int elemento;
-
-	entrada >> numLinhas >> numColunas;
-
-	vector< vector<double> > matriz(numLinhas);
-	for(int i = 0; i < numLinhas; i++) {
-
-		matriz[i] = vector<double>(numColunas);
-
-		for(int j = 0; j < numColunas; j++) {
-			entrada >> elemento;
-			matriz[i][j] = elemento;
-		}
-	}
-
-	return matriz;
-}
-
-vector<double> Matrizes::fetchVector(fstream &entrada) {
-	int numLinhas;
-	int elemento;
-
-	entrada >> numLinhas;
-
-	vector<double> vetor(numLinhas);
-	for(int i = 0; i < numLinhas; i++) {
-		entrada >> elemento;
-		vetor[i] = elemento;
-	}
-
-	return vetor;
-}
-
-bool Matrizes::setOperands(int operacao) {
-	fstream entrada;
-	entrada.open(inputString(operacao));
-
-	/* Pegando a matriz esparsa. */
-	vector< vector<double> > M = fetchMatrix(entrada);
-	numLinhas = M.size();
-	
-
-	switch(operacao) {
-
-		case 1: { /* Pegando o vetor esparso. */
-			vector<double> V = fetchVector(entrada);
-
-			if(V.size() == M[0].size())
-				vetorEsparso = getSparseVector(V);
-			else
-				return false;
-			
-			break;
-		}
-
-		case 2: { /* Pegando a matriz esparsa. */
-			vector< vector<double> > M2 = fetchMatrix(entrada);
-
-			if(M2.size() == M[0].size())
-				matrizEsparsa2 = getSparseMatrix(M2);
-			else 
-				return false;
-			
-			break;
-		}
-
-		case 3: { /* Pegando a matriz densa. */
-			matrizDensa = fetchMatrix(entrada);
-
-			if(matrizDensa.size() != M[0].size()) 
-				return false;
-
-			break;
-		}	
-	}
-
-	entrada.close();
-
-	matrizEsparsa1 = getSparseMatrix(M);
-	return true;
-}
-
-void Matrizes::setSolution() {
-	solucaoMM = vector< vector<parEsparso> >(numLinhas);
-	solucaoMV = vector<parEsparso>(numLinhas);	
-}
-
-vector<parEsparso> Matrizes::getSparseVector(vector<double> V) {
-	vector<parEsparso> sparseV;
-	for(int i = 0; i < V.size(); i++) 
-		if(V[i] != 0)
-			sparseV.push_back(pair<int, double>(i, V[i]));
-	return sparseV;
-}
-
-vector< vector<parEsparso> > Matrizes::getSparseMatrix(vector< vector<double> > M) {
-	vector< vector<parEsparso> > sparseM;
-	for(int i = 0; i < M.size(); i++) 
-		sparseM.push_back(getSparseVector(M[i]));
-	return sparseM;
-}
-
-string Matrizes::inputString(int operacao) {
-	string input = "";
-	input += (operacao + 48);
-	input += ".in";
-	return input;
-}
-
-void Matrizes::timesSparseVector(int numThread) {
-
-	double soma = 0;
-
-	for(int j = 0; j < matrizEsparsa1[numThread].size(); j++) {
-		int elemento = matrizEsparsa1[numThread][j].first;
-		for(int k = 0; k < vetorEsparso.size(); k++)
-			if(vetorEsparso[k].first == elemento) 
-				soma += matrizEsparsa1[numThread][j].second * vetorEsparso[k].second;
-	}
-	
-	if(soma != 0)
-		solucaoMV[numThread] = pair<int,double>(numThread, soma);
-}
-
-void Matrizes::timesSparseMatrix(int numThread) { /*parei aqui*/
-
-	double soma = 0;
-
-	for(int i = 0; i < matrizEsparsa1[numThread].size(); i++) {
-		int elemento = matrizEsparsa1[numThread][i].first;
-		for(int j = 0; j < matrizEsparsa2.size(); j++)
-			for(int k = 0; k < matrizEsparsa2[j].size(); k++)
-		if(soma != 0)
-			solucaoMM[numThread].push_back(pair<int,double>(numThread, soma));
-		soma = 0;
-	}
-
-}
-
-void Matrizes::printSolution(int operacao) {
-	cout << "Solução:" << endl;
-	if(operacao == 1) 
-		for(int i = 0; i < solucaoMV.size(); i++)
-			cout << "(" << solucaoMV[i].first << ", " << solucaoMV[i].second << ")" << " ";
-	else {
-		for(int i = 0; i < solucaoMM.size(); i++) {
-			for(int j = 0; j < solucaoMM[i].size(); j++)
-				cout << "(" << solucaoMM[i][j].first << ", " << solucaoMM[i][j].second << ")" << " ";
-			cout << endl;
-		}
-	}
-	cout << endl;
-}
-
 int main(int argc, char const *argv[]) {
-	
+
 	/* Atenção! O programa usa arquivos para sua entrada! 
 	Modifique os arquivos x.in, onde x é a operação a ser realizada, para alterar a entrada. */
 
-	cout << "Multiplicação entre Matrizes" << endl;
-	cout << "1 - Matriz esparsa x Vetor esparso" << endl;
+	cout << "1 - Matriz esparsa x Vetor denso" << endl;
 	cout << "2 - Matriz esparsa x Matriz esparsa" << endl;
 	cout << "3 - Matriz esparsa x Matriz densa" << endl;
 
@@ -234,13 +229,12 @@ int main(int argc, char const *argv[]) {
 	cout << "Digite que operação você quer fazer: ";
 	cin >> operacao;
 
-	vector< vector<double> > ME1; // Matriz esparsa 1.
-	int numLinhas1, numColunas1;
+	cout << "Abrindo arquivo " << operacao << ".in..." << endl;
 
-	Matrizes M(operacao);
+	SparseMatrix M(operacao);
 
 	/* Criação das threads. */
-	int numThreads = M.getNumLinhas();
+	int numThreads = M.getNumThreads();
 	thread multiplicadores[numThreads];
 
 	for(int i = 0; i < numThreads; i++)
@@ -251,6 +245,6 @@ int main(int argc, char const *argv[]) {
 		multiplicadores[i].join();	
 
 	M.printSolution(operacao);
-
+	
 	return 0;
 }
