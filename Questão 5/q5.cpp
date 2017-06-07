@@ -190,7 +190,20 @@ public:
 			solucaoDensa[numThread] = par(0, soma);
 	};
 
-	void timesDenseMatrix(int numThread) {};
+	void timesDenseMatrix(int numThread) {
+
+		double soma = 0;
+
+		for(int i = 0; i < matrizDensa[0].size(); i++) {
+			soma = 0;
+			for(int j = 0; j < matrizEsparsa_1[numThread].size(); j++)
+				soma += matrizEsparsa_1[numThread][j].second * matrizDensa[matrizEsparsa_1[numThread][j].first][i];
+
+			if(soma != 0)
+				solucaoEsparsa[numThread].push_back(par(i, soma));
+		}
+
+	};
 
 	void printSolution(int operacao) {
 		cout << endl << "Solução:" << endl;
