@@ -69,7 +69,12 @@ int main() {
 	produtosLidos = 0;
 
 	int numThreads, numProdutos, numArquivos;
-	cin >> numArquivos >> numThreads >> numProdutos;
+	cout << "Digite o numero de arquivos de entrada:";
+	cin >> numArquivos;
+	cout << "Digite o numero de threads que seu programa vai usar:";
+	cin >> numThreads; 
+	cout << "Digite o numero de produtos da entrada:";
+	cin >> numProdutos; 
 
 	produtos = vector<int>(numProdutos, 0); // Array de produtos (contadores).
 	mutexes = vector<mutex>(numProdutos); // Array de mutexes, um por produto.

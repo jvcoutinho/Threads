@@ -31,4 +31,8 @@ q7:
 	gcc -pthread Questão\ 7/q7.c -o q7
 	./q7
 	rm q7
-
+push:
+	git status
+	git add -A
+	git commit -m "revisando"
+	git push
