@@ -20,6 +20,7 @@ protected:
 	static mutex bufferMtx;
 	static mutex requestMtx;
 	static mutex receiveMtx;
+	static mutex clientMtx;
 	static condition_variable not_full;
 	static condition_variable not_empty;
 	static condition_variable no_request;
@@ -79,6 +80,7 @@ bool CriticalRegions::pageReceived = false;
 mutex CriticalRegions::bufferMtx;
 mutex CriticalRegions::requestMtx;
 mutex CriticalRegions::receiveMtx;
+mutex CriticalRegions::clientMtx;
 condition_variable CriticalRegions::not_full;
 condition_variable CriticalRegions::not_empty;
 condition_variable CriticalRegions::no_request;
@@ -140,7 +142,7 @@ void Servidor::server() {
 		/* A latência entre o servidor e o cliente altera o modo como o programa executa:
 		- latência alta causa maior aleatoriedade nas requisições, mas pode fazer com que clientes recebam a mesma página.
 		- latência baixa causa menor aleatoriedade, mas páginas diferentes são garantidas. */
-		this_thread::sleep_for(chrono::milliseconds(100));
+		this_thread::sleep_for(chrono::milliseconds(20));
 	}
 }
 
@@ -180,8 +182,9 @@ void Cliente::returnAnswer() {
 
 void Cliente::client(int numCliente) {
 
-	for(int i = 0; i < 4; i++) {
+	for(int i = 0; true; i++) {
 
+		
 		/* O cliente requisita uma página. Caso o buffer esteja vazio, ele esperará.
 		Sua implementação permite que mais de um cliente requisite uma página por vez. Desse modo, são organizados em uma fila. */
 		request(numCliente);
@@ -189,10 +192,12 @@ void Cliente::client(int numCliente) {
 		int pagina = fetchPage();
 		// e envia sua resposta ao servidor.		
 		returnAnswer();
-
+		clientMtx.lock();
 		cout << "CLIENTE " << numCliente << " recebeu página " << pagina << '.' << endl;
+		clientMtx.unlock();
 
-		this_thread::sleep_for(chrono::milliseconds(300));
+		this_thread::sleep_for(chrono::milliseconds(100));
+		
 	}
 	
 }

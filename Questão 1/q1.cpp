@@ -5,11 +5,11 @@
 #include <mutex>
 #include <fstream>
 #include <vector>
+
 using namespace std;
 
 vector<bool> arquivosLidos;
 vector<mutex> mutexes;
-mutex mutexArquivos;
 vector<int> produtos;
 int produtosLidos;
 
@@ -37,15 +37,12 @@ void abrirArquivo(int i) {
 	fs.open(nomeArquivo);
 	
 	int produto;
-	if(!fs.eof())
-		fs >> produto;
 	while(!fs.eof()) {
-
-		cout << "Produto " << produto << endl;
-		contabilizarVenda(produto);
-		produtosLidos++;
-
-		fs >> produto;	
+		fs >> produto;
+		if(!fs.eof()) { // Impedir que ele conte um arquivo a mais.
+			contabilizarVenda(produto);
+			produtosLidos++;
+		}	
 	}
 
 	fs.close(); 
@@ -55,16 +52,15 @@ void abrirArquivo(int i) {
 void contar(int numThread) { 
 	
 	/* Por esse algoritmo, cada thread lerá o arquivo com x igual ao seu índice.
-	   Se houver mais arquivos que threads, a última thread lerá o restante. */
+	   Inicialmente, se houver mais arquivos que threads, a última thread lerá o restante, porém, graças ao escalonador, há
+	casos raros em que as threads lêem mais arquivos (mas nunca um arquivo já lido). */
 
-	 cout << "Thread " << numThread << " aqui!" << endl;
-	for(int i = numThread; i < arquivosLidos.size(); i = i + 1) {
-		mutexArquivos.lock(); // Garante que diferentes threads não lerão um mesmo arquivo.	
+	// cout << "Thread " << numThread << " aqui!" << endl;
+	for(int i = numThread; i < arquivosLidos.size(); i = i + 1) {	
 		if(arquivosLidos.at(i) == false) {
 			arquivosLidos.at(i) = true;		
 			abrirArquivo(i + 1);
 		}
-		mutexArquivos.unlock();
 	}
 }
 
