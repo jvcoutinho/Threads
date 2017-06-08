@@ -24,8 +24,9 @@ q5:
 	cd Questão\ 5/ && ./q5 && rm q5
 
 q6: 
-	echo Foi mal teacher
-	echo :D
+	g++ --std=c++11 -pthread Questão\ 6/q6.cpp -o q6
+	./q6
+	rm q6
 
 q7: 
 	gcc -pthread Questão\ 7/q7.c -o q7
